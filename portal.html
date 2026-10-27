@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mavora | Portal Ahli</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="wrap">
+    <div class="brand">MAVORA<small>Sahabat Komuniti</small></div>
+    <button type="button" onclick="signOut()">Log Keluar</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="card" id="loading"><p class="empty">Sila tunggu sebentar...</p></div>
+
+  <div id="main" hidden>
+    <div class="card">
+      <h2 id="hello"></h2>
+      <p class="sub" id="who" style="margin:0"></p>
+    </div>
+
+    <div class="card">
+      <h2>Pautan Peribadi Anda</h2>
+      <p class="sub">Kongsikan pautan ini. Sesiapa yang mendaftar melaluinya akan diletakkan di kaki kiri anda secara automatik.</p>
+      <div class="linkbox">
+        <input id="myLink" readonly>
+        <button type="button" id="copyBtn">Salin</button>
+      </div>
+      <div class="actions">
+        <a id="waBtn" class="wa" target="_blank" rel="noopener">Kongsi di WhatsApp</a>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Rangkaian Anda</h2>
+      <div class="grid three stats" style="margin-top:12px">
+        <div class="stat"><div class="label">Kaki Kiri</div><div class="value" id="stL">0</div></div>
+        <div class="stat"><div class="label">Kaki Kanan</div><div class="value" id="stR">0</div></div>
+        <div class="stat"><div class="label">Tajaan Langsung</div><div class="value" id="stD">0</div></div>
+      </div>
+      <div class="asat" id="asAt"></div>
+    </div>
+
+    <div class="card">
+      <h2>Daftar Ahli Baharu</h2>
+      <p class="sub">Daftarkan ahli di bawah tajaan anda dan pilih kaki penempatan. Ahli akan diletakkan di kedudukan paling bawah kaki yang dipilih.</p>
+      <form id="regForm">
+        <div class="grid two">
+          <div><label for="rgName">Nama Penuh</label><input id="rgName" required></div>
+          <div><label for="rgPhone">Nombor Telefon</label><input id="rgPhone" type="tel" required></div>
+          <div><label for="rgEmail">E-mel <span class="opt">(untuk ahli log masuk kelak)</span></label><input id="rgEmail" type="email" required></div>
+          <div><label for="rgIc">Nombor Kad Pengenalan <span class="opt">(pilihan)</span></label><input id="rgIc" inputmode="numeric"></div>
+        </div>
+        <label>Kaki Penempatan</label>
+        <div class="legpick">
+          <label style="margin:0"><input type="radio" name="leg" value="L" checked><span>Kaki Kiri</span></label>
+          <label style="margin:0"><input type="radio" name="leg" value="R"><span>Kaki Kanan</span></label>
+        </div>
+        <button type="submit" id="rgBtn">Daftar Ahli</button>
+        <div id="rgMsg" class="msg" hidden></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="toolbar" style="justify-content:space-between">
+        <div>
+          <h2>Salasilah Binari</h2>
+          <p class="sub" style="margin:0">Ahli di bawah anda mengikut tahap.</p>
+        </div>
+        <select id="depthSel" style="width:auto">
+          <option value="3">Sehingga tahap 3</option>
+          <option value="5" selected>Sehingga tahap 5</option>
+          <option value="10">Sehingga tahap 10</option>
+        </select>
+      </div>
+      <div class="grid two">
+        <div><h3 style="font-size:14px;margin:0 0 4px">Kaki Kiri</h3><ul class="leglist" id="listL"></ul></div>
+        <div><h3 style="font-size:14px;margin:0 0 4px">Kaki Kanan</h3><ul class="leglist" id="listR"></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">Mavora Sahabat Komuniti</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+var me = null;
+var MAX_PER_LEG = 200;
+
+async function loadCounts() {
+  var r = await sb.rpc('my_leg_counts');
+  if (r.error || !r.data || !r.data.length) return;
+  var c = r.data[0];
+  $('stL').textContent = c.left_count;
+  $('stR').textContent = c.right_count;
+  $('stD').textContent = c.direct_sponsored;
+  $('asAt').textContent = 'Angka kaki dikemas kini setiap 15 minit. Kemas kini terakhir: ' + fmtDateTime(c.counts_as_at) + '.';
+}
+
+function renderLeg(ul, rows) {
+  if (!rows.length) { ul.innerHTML = '<li class="empty">Belum ada ahli di kaki ini.</li>'; return; }
+  var shown = rows.slice(0, MAX_PER_LEG);
+  ul.innerHTML = shown.map(function (d) {
+    return '<li><div><b>' + esc(d.full_name) + '</b><br><span class="sub">' + esc(d.member_code) + '</span></div>' +
+           '<div class="meta">Tahap ' + esc(d.depth) + '<br>' + esc(fmtDate(d.joined_at)) + '</div></li>';
+  }).join('') + (rows.length > MAX_PER_LEG ? '<li class="empty">Dan ' + (rows.length - MAX_PER_LEG) + ' ahli lagi. Pilih tahap yang lebih rendah untuk paparan ringkas.</li>' : '');
+}
+
+async function loadTree() {
+  $('listL').innerHTML = $('listR').innerHTML = '<li class="empty">Memuatkan...</li>';
+  var r = await sb.rpc('my_binary_downline', { p_max_depth: Number($('depthSel').value) });
+  if (r.error) { $('listL').innerHTML = $('listR').innerHTML = '<li class="empty">' + esc(bmError(r.error)) + '</li>'; return; }
+  var rows = r.data || [];
+  renderLeg($('listL'), rows.filter(function (d) { return d.leg === 'L'; }));
+  renderLeg($('listR'), rows.filter(function (d) { return d.leg === 'R'; }));
+}
+
+$('depthSel').onchange = loadTree;
+
+$('copyBtn').onclick = async function () {
+  try { await navigator.clipboard.writeText($('myLink').value); }
+  catch (e) { $('myLink').select(); document.execCommand('copy'); }
+  $('copyBtn').textContent = 'Disalin';
+  setTimeout(function () { $('copyBtn').textContent = 'Salin'; }, 1500);
+};
+
+$('regForm').onsubmit = async function (e) {
+  e.preventDefault();
+  showMsg('rgMsg', '');
+  busy($('rgBtn'), true, 'Sedang mendaftar...');
+  var leg = document.querySelector('input[name="leg"]:checked').value;
+  var r = await sb.rpc('register_member', {
+    p_sponsor_code: me.member_code,
+    p_full_name: $('rgName').value.trim(),
+    p_phone: $('rgPhone').value.trim(),
+    p_email: $('rgEmail').value.trim().toLowerCase(),
+    p_ic_no: $('rgIc').value.replace(/\D/g, '') || null,
+    p_side: leg
+  });
+  busy($('rgBtn'), false);
+  if (r.error) { showMsg('rgMsg', bmError(r.error), 'err'); return; }
+  showMsg('rgMsg', 'Pendaftaran berjaya. Kod ahli baharu: ' + r.data + '. Minta ahli mendaftar akaun di portal ini menggunakan e-mel yang sama untuk log masuk.', 'ok');
+  $('regForm').reset();
+  loadTree();
+};
+
+(async function () {
+  var s = await sb.auth.getSession();
+  if (!s.data.session) { location.href = 'index.html'; return; }
+  var p = await sb.rpc('my_profile');
+  if (p.error || !p.data || !p.data.length) { location.href = 'index.html'; return; }
+  me = p.data[0];
+
+  $('hello').textContent = 'Assalamualaikum, ' + me.full_name;
+  $('who').textContent = 'Kod Ahli: ' + me.member_code +
+    (me.sponsor_code ? '  |  Penaja: ' + me.sponsor_name + ' (' + me.sponsor_code + ')' : '') +
+    '  |  Ahli sejak ' + fmtDate(me.joined_at);
+
+  var link = location.origin + '/?ref=' + encodeURIComponent(me.referral_link_code);
+  $('myLink').value = link;
+  $('waBtn').href = 'https://wa.me/?text=' + encodeURIComponent(
+    'Assalamualaikum. Jom sertai Mavora sebagai Sahabat Komuniti. Pendaftaran adalah percuma melalui pautan ini: ' + link);
+
+  $('loading').hidden = true;
+  $('main').hidden = false;
+  loadCounts();
+  loadTree();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ms">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mavora | Portal Sahabat Komuniti</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap narrow">
+  <div class="hero">
+    <h1>MAVORA</h1>
+    <p>Portal Sahabat Komuniti</p>
+  </div>
+
+  <!-- Loading while checking an existing session -->
+  <div class="card" id="loading"><p class="empty">Sila tunggu sebentar...</p></div>
+
+  <!-- Login and signup -->
+  <div class="card" id="authCard" hidden>
+    <div class="tabs">
+      <button type="button" id="tabLogin" class="on">Log Masuk</button>
+      <button type="button" id="tabSignup">Daftar Ahli</button>
+    </div>
+
+    <form id="loginForm">
+      <label for="liEmail">E-mel</label>
+      <input id="liEmail" type="email" autocomplete="email" required>
+      <label for="liPass">Kata Laluan</label>
+      <input id="liPass" type="password" autocomplete="current-password" required>
+      <button type="submit" id="liBtn">Log Masuk</button>
+      <button type="button" class="linkbtn" id="forgotLink">Lupa kata laluan?</button>
+      <div id="liMsg" class="msg" hidden></div>
+    </form>
+
+    <form id="signupForm" hidden>
+      <div class="msg" id="refBox" hidden></div>
+      <label for="suName">Nama Penuh <span class="opt">(seperti dalam kad pengenalan)</span></label>
+      <input id="suName" autocomplete="name" required>
+      <label for="suPhone">Nombor Telefon</label>
+      <input id="suPhone" type="tel" autocomplete="tel" placeholder="0123456789" required>
+      <label for="suIc">Nombor Kad Pengenalan <span class="opt">(pilihan)</span></label>
+      <input id="suIc" inputmode="numeric" placeholder="900101015555">
+      <label for="suEmail">E-mel</label>
+      <input id="suEmail" type="email" autocomplete="email" required>
+      <label for="suPass">Kata Laluan <span class="opt">(sekurang-kurangnya 6 aksara)</span></label>
+      <input id="suPass" type="password" autocomplete="new-password" minlength="6" required>
+      <label for="suSponsor">Kod Penaja <span class="opt">(kosongkan jika anda telah didaftarkan oleh pemimpin)</span></label>
+      <input id="suSponsor" placeholder="Contoh: MV100001">
+      <button type="submit" id="suBtn">Daftar Sekarang</button>
+      <p class="sub" style="margin-top:10px">Pendaftaran sebagai Sahabat Komuniti adalah percuma.</p>
+      <div id="suMsg" class="msg" hidden></div>
+    </form>
+  </div>
+
+  <!-- Forgot password -->
+  <div class="card" id="forgotCard" hidden>
+    <h2>Lupa Kata Laluan</h2>
+    <p class="sub">Masukkan e-mel anda. Kami akan menghantar pautan untuk menetapkan semula kata laluan.</p>
+    <form id="forgotForm">
+      <label for="fgEmail">E-mel</label>
+      <input id="fgEmail" type="email" required>
+      <button type="submit" id="fgBtn">Hantar Pautan</button>
+      <button type="button" class="linkbtn" id="backToLogin">Kembali ke Log Masuk</button>
+      <div id="fgMsg" class="msg" hidden></div>
+    </form>
+  </div>
+
+  <!-- Set a new password (arrives from the reset email) -->
+  <div class="card" id="newPassCard" hidden>
+    <h2>Tetapkan Kata Laluan Baharu</h2>
+    <form id="newPassForm">
+      <label for="npPass">Kata Laluan Baharu <span class="opt">(sekurang-kurangnya 6 aksara)</span></label>
+      <input id="npPass" type="password" minlength="6" autocomplete="new-password" required>
+      <button type="submit" id="npBtn">Simpan Kata Laluan</button>
+      <div id="npMsg" class="msg" hidden></div>
+    </form>
+  </div>
+
+  <!-- Logged in, but no member record yet -->
+  <div class="card" id="completeCard" hidden>
+    <h2>Lengkapkan Pendaftaran</h2>
+    <p class="sub">Akaun anda telah wujud tetapi belum dipautkan kepada rekod ahli. Sila lengkapkan butiran di bawah.</p>
+    <form id="completeForm">
+      <label for="cpName">Nama Penuh</label>
+      <input id="cpName" required>
+      <label for="cpPhone">Nombor Telefon</label>
+      <input id="cpPhone" type="tel" required>
+      <label for="cpIc">Nombor Kad Pengenalan <span class="opt">(pilihan)</span></label>
+      <input id="cpIc" inputmode="numeric">
+      <label for="cpSponsor">Kod Penaja</label>
+      <input id="cpSponsor" required>
+      <button type="submit" id="cpBtn">Lengkapkan Pendaftaran</button>
+      <button type="button" class="linkbtn" onclick="signOut()">Log keluar</button>
+      <div id="cpMsg" class="msg" hidden></div>
+    </form>
+  </div>
+
+  <div class="foot">Mavora Sahabat Komuniti</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+var PENDING_KEY = 'mavora_pending_signup';
+var params = new URLSearchParams(location.search);
+var refCode = (params.get('ref') || '').trim().toUpperCase();
+var recovering = /type=recovery/.test(location.hash + location.search);
+
+function show(id) {
+  ['loading', 'authCard', 'forgotCard', 'newPassCard', 'completeCard'].forEach(function (c) { $(c).hidden = (c !== id); });
+}
+
+function setTab(which) {
+  $('tabLogin').classList.toggle('on', which === 'login');
+  $('tabSignup').classList.toggle('on', which === 'signup');
+  $('loginForm').hidden = which !== 'login';
+  $('signupForm').hidden = which !== 'signup';
+}
+
+function readPending() {
+  try { return JSON.parse(localStorage.getItem(PENDING_KEY) || 'null'); } catch (e) { return null; }
+}
+function savePending(p) { try { localStorage.setItem(PENDING_KEY, JSON.stringify(p)); } catch (e) {} }
+function clearPending() { try { localStorage.removeItem(PENDING_KEY); } catch (e) {} }
+
+/* Decide where a logged in person goes */
+async function finishSetup(user) {
+  show('loading');
+
+  var adm = await sb.rpc('is_admin');
+  if (!adm.error && adm.data === true) { location.href = 'admin.html'; return; }
+
+  var prof = await sb.rpc('my_profile');
+  if (!prof.error && prof.data && prof.data.length) { location.href = 'portal.html'; return; }
+
+  /* registered earlier by a leader using this email */
+  var claim = await sb.rpc('claim_my_account');
+  if (!claim.error) { clearPending(); location.href = 'portal.html'; return; }
+
+  /* finishing a signup started on this device */
+  var p = readPending();
+  if (p && p.email === (user.email || '').toLowerCase() && p.sponsor) {
+    var reg = await sb.rpc('register_member', {
+      p_sponsor_code: p.sponsor, p_full_name: p.name, p_phone: p.phone,
+      p_email: p.email, p_ic_no: p.ic || null, p_side: null
+    });
+    if (!reg.error) { clearPending(); location.href = 'portal.html'; return; }
+    showMsg('cpMsg', bmError(reg.error), 'err');
+  }
+
+  /* otherwise ask for the details */
+  if (p) { $('cpName').value = p.name || ''; $('cpPhone').value = p.phone || ''; $('cpIc').value = p.ic || ''; $('cpSponsor').value = p.sponsor || ''; }
+  if (!$('cpSponsor').value && refCode) $('cpSponsor').value = refCode;
+  show('completeCard');
+}
+
+/* Tabs and links */
+$('tabLogin').onclick = function () { setTab('login'); };
+$('tabSignup').onclick = function () { setTab('signup'); };
+$('forgotLink').onclick = function () { $('fgEmail').value = $('liEmail').value; show('forgotCard'); };
+$('backToLogin').onclick = function () { show('authCard'); setTab('login'); };
+
+/* Login */
+$('loginForm').onsubmit = async function (e) {
+  e.preventDefault();
+  showMsg('liMsg', '');
+  busy($('liBtn'), true, 'Sedang log masuk...');
+  var r = await sb.auth.signInWithPassword({ email: $('liEmail').value.trim(), password: $('liPass').value });
+  busy($('liBtn'), false);
+  if (r.error) { showMsg('liMsg', bmError(r.error), 'err'); return; }
+  finishSetup(r.data.user);
+};
+
+/* Signup */
+$('signupForm').onsubmit = async function (e) {
+  e.preventDefault();
+  showMsg('suMsg', '');
+  var email = $('suEmail').value.trim().toLowerCase();
+  var pending = {
+    name: $('suName').value.trim(),
+    phone: $('suPhone').value.trim(),
+    ic: $('suIc').value.replace(/\D/g, ''),
+    email: email,
+    sponsor: $('suSponsor').value.trim().toUpperCase()
+  };
+  savePending(pending);
+  busy($('suBtn'), true, 'Sedang mendaftar...');
+  var r = await sb.auth.signUp({
+    email: email,
+    password: $('suPass').value,
+    options: { emailRedirectTo: location.origin + location.pathname }
+  });
+  busy($('suBtn'), false);
+  if (r.error) { showMsg('suMsg', bmError(r.error), 'err'); return; }
+  if (r.data.session) { finishSetup(r.data.user); return; }
+  showMsg('suMsg', 'Akaun berjaya dicipta. Sila semak e-mel anda dan klik pautan pengesahan, kemudian log masuk di sini untuk melengkapkan pendaftaran.', 'ok');
+  $('signupForm').reset();
+  if (refCode) $('suSponsor').value = refCode;
+};
+
+/* Forgot password */
+$('forgotForm').onsubmit = async function (e) {
+  e.preventDefault();
+  busy($('fgBtn'), true, 'Sedang menghantar...');
+  var r = await sb.auth.resetPasswordForEmail($('fgEmail').value.trim(), { redirectTo: location.origin + location.pathname });
+  busy($('fgBtn'), false);
+  if (r.error) { showMsg('fgMsg', bmError(r.error), 'err'); return; }
+  showMsg('fgMsg', 'Pautan telah dihantar. Sila semak e-mel anda.', 'ok');
+};
+
+/* New password */
+$('newPassForm').onsubmit = async function (e) {
+  e.preventDefault();
+  busy($('npBtn'), true, 'Sedang menyimpan...');
+  var r = await sb.auth.updateUser({ password: $('npPass').value });
+  busy($('npBtn'), false);
+  if (r.error) { showMsg('npMsg', bmError(r.error), 'err'); return; }
+  showMsg('npMsg', 'Kata laluan telah dikemas kini.', 'ok');
+  setTimeout(function () { finishSetup(r.data.user); }, 1200);
+};
+
+/* Complete registration */
+$('completeForm').onsubmit = async function (e) {
+  e.preventDefault();
+  showMsg('cpMsg', '');
+  var u = (await sb.auth.getUser()).data.user;
+  busy($('cpBtn'), true, 'Sedang mendaftar...');
+  var reg = await sb.rpc('register_member', {
+    p_sponsor_code: $('cpSponsor').value.trim().toUpperCase(),
+    p_full_name: $('cpName').value.trim(),
+    p_phone: $('cpPhone').value.trim(),
+    p_email: u.email,
+    p_ic_no: $('cpIc').value.replace(/\D/g, '') || null,
+    p_side: null
+  });
+  busy($('cpBtn'), false);
+  if (reg.error) { showMsg('cpMsg', bmError(reg.error), 'err'); return; }
+  clearPending();
+  location.href = 'portal.html';
+};
+
+/* Start */
+sb.auth.onAuthStateChange(function (event) {
+  if (event === 'PASSWORD_RECOVERY') { recovering = true; show('newPassCard'); }
+});
+
+(async function () {
+  if (refCode) {
+    $('suSponsor').value = refCode;
+    $('suSponsor').readOnly = true;
+    $('refBox').innerHTML = 'Anda dijemput oleh penaja <b>' + esc(refCode) + '</b>.';
+    $('refBox').hidden = false;
+    setTab('signup');
+  }
+  var s = await sb.auth.getSession();
+  if (recovering) { show('newPassCard'); return; }
+  if (s.data.session) { finishSetup(s.data.session.user); return; }
+  show('authCard');
+})();
+</script>
+</body>
+</html>

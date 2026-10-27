@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mavora | Admin Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="wrap">
+    <div class="brand">MAVORA<small>Admin Console</small></div>
+    <button type="button" onclick="signOut()">Log out</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="card" id="loading"><p class="empty">Checking access...</p></div>
+
+  <div id="main" hidden>
+    <div class="tabs" style="margin-top:16px">
+      <button type="button" data-tab="overview" class="on">Overview</button>
+      <button type="button" data-tab="members">Members</button>
+      <button type="button" data-tab="register">Register</button>
+      <button type="button" data-tab="import">Bulk Import</button>
+    </div>
+
+    <!-- OVERVIEW -->
+    <section id="tab-overview">
+      <div class="card">
+        <div class="grid three stats">
+          <div class="stat"><div class="label">Total members</div><div class="value" id="ovTotal">0</div></div>
+          <div class="stat"><div class="label">Joined today</div><div class="value" id="ovToday">0</div></div>
+          <div class="stat"><div class="label">Joined this month</div><div class="value" id="ovMonth">0</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Latest signups</h2>
+        <p class="sub">The 10 most recent registrations.</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Code</th><th>Name</th><th>Sponsor</th><th>Leg</th><th>Source</th><th>Joined</th></tr></thead>
+          <tbody id="ovLatest"></tbody>
+        </table></div>
+      </div>
+    </section>
+
+    <!-- MEMBERS -->
+    <section id="tab-members" hidden>
+      <div class="card">
+        <div class="toolbar">
+          <input id="mbSearch" placeholder="Search code, name, email or phone">
+          <button type="button" class="small" id="mbGo">Search</button>
+        </div>
+        <div class="tablewrap"><table>
+          <thead><tr><th>Code</th><th>Name</th><th>Phone</th><th>Email</th><th>Sponsor</th><th>Placed under</th><th>Leg</th><th>Level</th><th>Left</th><th>Right</th><th>Status</th><th>Joined</th></tr></thead>
+          <tbody id="mbRows"></tbody>
+        </table></div>
+        <div class="pager">
+          <button type="button" class="small ghost" id="mbPrev">Previous</button>
+          <span id="mbInfo"></span>
+          <button type="button" class="small ghost" id="mbNext">Next</button>
+        </div>
+        <p class="asat">Left and right counts refresh every 15 minutes.</p>
+      </div>
+    </section>
+
+    <!-- REGISTER -->
+    <section id="tab-register" hidden>
+      <div class="card">
+        <h2>Register a member</h2>
+        <p class="sub">Admin registration can choose either leg. The member is placed at the bottom of the chosen leg under the sponsor.</p>
+        <form id="regForm">
+          <div class="grid two">
+            <div><label for="rgSponsor">Sponsor code</label><input id="rgSponsor" placeholder="MV100001" required></div>
+            <div><label>Leg</label>
+              <div class="legpick">
+                <label style="margin:0"><input type="radio" name="leg" value="L" checked><span>Left</span></label>
+                <label style="margin:0"><input type="radio" name="leg" value="R"><span>Right</span></label>
+              </div>
+            </div>
+            <div><label for="rgName">Full name</label><input id="rgName" required></div>
+            <div><label for="rgPhone">Phone</label><input id="rgPhone" type="tel" required></div>
+            <div><label for="rgEmail">Email <span class="opt">(needed for the member to log in later)</span></label><input id="rgEmail" type="email"></div>
+            <div><label for="rgIc">IC number <span class="opt">(optional)</span></label><input id="rgIc" inputmode="numeric"></div>
+          </div>
+          <button type="submit" id="rgBtn">Register member</button>
+          <div id="rgMsg" class="msg" hidden></div>
+        </form>
+      </div>
+    </section>
+
+    <!-- BULK IMPORT -->
+    <section id="tab-import" hidden>
+      <div class="card">
+        <h2>Bulk import from CSV</h2>
+        <p class="sub">For moving members from another system with their exact tree positions. Required columns: member_code, full_name, sponsor_code, placement_parent_code, placement_side. Optional: ic_no, phone, email, joined_at, status. Top level members use MV100001 as sponsor and placement parent.</p>
+        <form id="impForm">
+          <div class="grid two">
+            <div><label for="impBatch">Batch name <span class="opt">(must be new each upload)</span></label><input id="impBatch" required></div>
+            <div><label for="impFile">CSV file</label><input id="impFile" type="file" accept=".csv,text/csv" required></div>
+          </div>
+          <button type="submit" id="impBtn">Upload and process</button>
+          <div id="impMsg" class="msg" hidden></div>
+        </form>
+        <div id="impErrWrap" hidden style="margin-top:14px">
+          <h2 style="font-size:15px">Rows that need fixing</h2>
+          <p class="sub">Fix these in your file, then upload only these rows again under a new batch name.</p>
+          <div class="tablewrap"><table>
+            <thead><tr><th>Code</th><th>Name</th><th>Problem</th></tr></thead>
+            <tbody id="impErrRows"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="foot">Mavora Admin Console</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+var PAGE = 50, page = 0, total = 0;
+var MEMBER_COLS = 'member_code,full_name,phone,email,placement_side,placement_depth,status,source,joined_at,' +
+  'sponsor:sponsor_id(member_code),' +
+  'parent:placement_parent_id(member_code),' +
+  'member_leg_stats(left_count,right_count)';
+
+function legPill(s) { return s ? '<span class="pill ' + s + '">' + (s === 'L' ? 'Left' : 'Right') + '</span>' : ''; }
+function statusPill(s) { return '<span class="pill' + (s === 'active' ? '' : ' bad') + '">' + esc(s) + '</span>'; }
+function rel(v) { return Array.isArray(v) ? v[0] : v; }
+
+/* tabs */
+document.querySelectorAll('[data-tab]').forEach(function (b) {
+  b.onclick = function () {
+    document.querySelectorAll('[data-tab]').forEach(function (x) { x.classList.toggle('on', x === b); });
+    ['overview', 'members', 'register', 'import'].forEach(function (t) { $('tab-' + t).hidden = t !== b.dataset.tab; });
+    if (b.dataset.tab === 'members' && !$('mbRows').innerHTML) loadMembers();
+    if (b.dataset.tab === 'overview') loadOverview();
+  };
+});
+
+/* OVERVIEW */
+function myMidnight(offsetDays, monthStart) {
+  var now = new Date(Date.now() + 8 * 3600e3);           /* Malaysia time */
+  var y = now.getUTCFullYear(), m = now.getUTCMonth(), d = monthStart ? 1 : now.getUTCDate();
+  return new Date(Date.UTC(y, m, d) - 8 * 3600e3).toISOString();
+}
+
+async function loadOverview() {
+  var a = await sb.from('members').select('id', { count: 'exact', head: true });
+  var b = await sb.from('members').select('id', { count: 'exact', head: true }).gte('joined_at', myMidnight(0, false));
+  var c = await sb.from('members').select('id', { count: 'exact', head: true }).gte('joined_at', myMidnight(0, true));
+  $('ovTotal').textContent = a.count || 0;
+  $('ovToday').textContent = b.count || 0;
+  $('ovMonth').textContent = c.count || 0;
+
+  var r = await sb.from('members').select(MEMBER_COLS).order('created_at', { ascending: false }).limit(10);
+  if (r.error) { $('ovLatest').innerHTML = '<tr><td colspan="6">' + esc(r.error.message) + '</td></tr>'; return; }
+  $('ovLatest').innerHTML = (r.data || []).map(function (m) {
+    return '<tr><td>' + esc(m.member_code) + '</td><td>' + esc(m.full_name) + '</td><td>' + esc((rel(m.sponsor) || {}).member_code) +
+      '</td><td>' + legPill(m.placement_side) + '</td><td>' + esc(m.source) + '</td><td>' + esc(fmtDateTime(m.joined_at)) + '</td></tr>';
+  }).join('') || '<tr><td colspan="6" class="empty">No members yet.</td></tr>';
+}
+
+/* MEMBERS */
+async function loadMembers() {
+  var q = $('mbSearch').value.trim().replace(/[,()%*]/g, ' ').trim();
+  var req = sb.from('members').select(MEMBER_COLS, { count: 'exact' }).order('member_code').range(page * PAGE, page * PAGE + PAGE - 1);
+  if (q) req = req.or('member_code.ilike.*' + q + '*,full_name.ilike.*' + q + '*,email.ilike.*' + q + '*,phone.ilike.*' + q + '*');
+  $('mbRows').innerHTML = '<tr><td colspan="12" class="empty">Loading...</td></tr>';
+  var r = await req;
+  if (r.error) { $('mbRows').innerHTML = '<tr><td colspan="12">' + esc(r.error.message) + '</td></tr>'; return; }
+  total = r.count || 0;
+  $('mbRows').innerHTML = (r.data || []).map(function (m) {
+    var st = rel(m.member_leg_stats) || {};
+    return '<tr><td><b>' + esc(m.member_code) + '</b></td><td>' + esc(m.full_name) + '</td><td>' + esc(m.phone) + '</td><td>' + esc(m.email) +
+      '</td><td>' + esc((rel(m.sponsor) || {}).member_code) + '</td><td>' + esc((rel(m.parent) || {}).member_code) + '</td><td>' + legPill(m.placement_side) +
+      '</td><td>' + esc(m.placement_depth) + '</td><td>' + esc(st.left_count) + '</td><td>' + esc(st.right_count) +
+      '</td><td>' + statusPill(m.status) + '</td><td>' + esc(fmtDate(m.joined_at)) + '</td></tr>';
+  }).join('') || '<tr><td colspan="12" class="empty">No members found.</td></tr>';
+  var from = total ? page * PAGE + 1 : 0, to = Math.min(total, (page + 1) * PAGE);
+  $('mbInfo').textContent = from + ' to ' + to + ' of ' + total;
+  $('mbPrev').disabled = page === 0;
+  $('mbNext').disabled = to >= total;
+}
+$('mbGo').onclick = function () { page = 0; loadMembers(); };
+$('mbSearch').onkeydown = function (e) { if (e.key === 'Enter') { page = 0; loadMembers(); } };
+$('mbPrev').onclick = function () { if (page > 0) { page--; loadMembers(); } };
+$('mbNext').onclick = function () { page++; loadMembers(); };
+
+/* REGISTER */
+$('regForm').onsubmit = async function (e) {
+  e.preventDefault();
+  showMsg('rgMsg', '');
+  busy($('rgBtn'), true, 'Registering...');
+  var r = await sb.rpc('register_member', {
+    p_sponsor_code: $('rgSponsor').value.trim().toUpperCase(),
+    p_full_name: $('rgName').value.trim(),
+    p_phone: $('rgPhone').value.trim(),
+    p_email: $('rgEmail').value.trim().toLowerCase() || null,
+    p_ic_no: $('rgIc').value.replace(/\D/g, '') || null,
+    p_side: document.querySelector('#regForm input[name="leg"]:checked').value
+  });
+  busy($('rgBtn'), false);
+  if (r.error) { showMsg('rgMsg', r.error.message, 'err'); return; }
+  showMsg('rgMsg', 'Registered. New member code: ' + r.data, 'ok');
+  var keepSponsor = $('rgSponsor').value;
+  $('regForm').reset();
+  $('rgSponsor').value = keepSponsor;
+  $('mbRows').innerHTML = '';
+};
+
+/* BULK IMPORT */
+var IMPORT_COLS = ['member_code', 'full_name', 'ic_no', 'phone', 'email', 'sponsor_code', 'placement_parent_code', 'placement_side', 'joined_at', 'status'];
+
+function parseCsv(file) {
+  return new Promise(function (resolve, reject) {
+    Papa.parse(file, {
+      header: true, skipEmptyLines: 'greedy',
+      transformHeader: function (h) { return h.replace(/^﻿/, '').trim().toLowerCase(); },
+      complete: resolve, error: reject
+    });
+  });
+}
+
+$('impForm').onsubmit = async function (e) {
+  e.preventDefault();
+  showMsg('impMsg', '');
+  $('impErrWrap').hidden = true;
+  var batch = $('impBatch').value.trim();
+  var file = $('impFile').files[0];
+  if (!file) return;
+  busy($('impBtn'), true, 'Reading file...');
+  try {
+    var used = await sb.from('import_members_staging').select('id', { count: 'exact', head: true }).eq('batch', batch);
+    if (used.count) throw new Error('Batch name "' + batch + '" was already used. Please choose a new one.');
+
+    var parsed = await parseCsv(file);
+    var fields = parsed.meta.fields || [];
+    var missing = ['member_code', 'full_name', 'sponsor_code', 'placement_parent_code', 'placement_side'].filter(function (c) { return fields.indexOf(c) < 0; });
+    if (missing.length) throw new Error('Missing column(s): ' + missing.join(', '));
+
+    var rows = parsed.data.map(function (src) {
+      var o = { batch: batch };
+      IMPORT_COLS.forEach(function (c) { var v = src[c]; o[c] = (v == null || String(v).trim() === '') ? null : String(v).trim(); });
+      if (!o.status) o.status = 'active';
+      return o;
+    }).filter(function (o) { return o.member_code || o.full_name; });
+    if (!rows.length) throw new Error('The file has no data rows.');
+
+    for (var i = 0; i < rows.length; i += 500) {
+      busy($('impBtn'), false); busy($('impBtn'), true, 'Uploading ' + Math.min(i + 500, rows.length) + ' of ' + rows.length + '...');
+      var ins = await sb.from('import_members_staging').insert(rows.slice(i, i + 500));
+      if (ins.error) throw new Error('Upload stopped at row ' + (i + 1) + ': ' + ins.error.message);
+    }
+
+    busy($('impBtn'), false); busy($('impBtn'), true, 'Placing members in the tree...');
+    var run = await sb.rpc('process_member_import', { p_batch: batch });
+    if (run.error) throw new Error(run.error.message);
+    var res = (run.data || [])[0] || { imported: 0, failed: 0 };
+    showMsg('impMsg', 'Done. Imported: ' + res.imported + '. Need fixing: ' + res.failed + '.', res.failed ? 'err' : 'ok');
+
+    if (res.failed) {
+      var bad = await sb.from('import_members_staging').select('member_code,full_name,result').eq('batch', batch).neq('result', 'OK').order('id');
+      $('impErrRows').innerHTML = (bad.data || []).map(function (b) {
+        return '<tr><td>' + esc(b.member_code) + '</td><td>' + esc(b.full_name) + '</td><td>' + esc((b.result || '').replace(/^ERROR: /, '')) + '</td></tr>';
+      }).join('');
+      $('impErrWrap').hidden = false;
+    }
+    $('mbRows').innerHTML = '';
+  } catch (err) {
+    showMsg('impMsg', err.message || String(err), 'err');
+  }
+  busy($('impBtn'), false);
+};
+
+/* START */
+(async function () {
+  var s = await sb.auth.getSession();
+  if (!s.data.session) { location.href = 'index.html'; return; }
+  var adm = await sb.rpc('is_admin');
+  if (adm.error || adm.data !== true) { location.href = 'index.html'; return; }
+  var d = new Date(Date.now() + 8 * 3600e3);
+  $('impBatch').value = 'IMPORT_' + d.toISOString().slice(0, 10).replace(/-/g, '') + '_' + d.toISOString().slice(11, 16).replace(':', '');
+  $('loading').hidden = true;
+  $('main').hidden = false;
+  loadOverview();
+})();
+</script>
+</body>
+</html>
